@@ -115,7 +115,7 @@ test('deleting a single blog post resource', async () => {
     assert.strictEqual(blogsAtEnd.length, blogsAtStart.length - 1)
 })
 
-test.only('updating like of a blog', async () => {
+test('updating like of a blog', async () => {
     const blogsAtStart = await testHelper.blogsInDb()
     const blogToUpdate = blogsAtStart[0]
     const newBlog = {
