@@ -1,5 +1,8 @@
-echo "Starting app from the backend"
+#!/usr/bin/env bash
+set -euo pipefail
 
-cd backend
-npm install
-npm run start
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "Starting app from the backend"
+cd "$ROOT_DIR/backend"
+exec npm start

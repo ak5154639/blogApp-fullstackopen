@@ -1,4 +1,4 @@
-name: Blog App Pipeline
+name: Blog App Deployment Pipeline
 
 on:
   pull_request:
@@ -14,6 +14,7 @@ jobs:
   build_and_test:
     name: Build and test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
 
@@ -66,6 +67,7 @@ jobs:
     needs: build_and_test
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Trigger Render deployment
         env:
@@ -75,7 +77,7 @@ jobs:
             echo "RENDER_DEPLOY_HOOK is not configured"
             exit 1
           }
-          curl --fail --show-error --silent --location "$deploy_url"
+          curl --fail --show-error --silent --location --request POST "$deploy_url"
 
   notify_failure:
     name: Notify failure
@@ -88,9 +90,9 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           status: failure
-          title: Blog App pipeline failed
-          description: Build or deployment failed. Check the GitHub Actions logs.
-          content: Blog App deployment failed.
+          content: "Blog App deployment failed."
+          title: "Blog App pipeline failed"
+          description: "Build or deployment failed. Check the GitHub Actions logs."
 
   notify_success:
     name: Notify success
@@ -103,9 +105,9 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           status: success
-          title: Blog App pipeline succeeded
-          description: Build and deployment checks completed successfully.
-          content: Blog App deployment succeeded.
+          content: "Blog App deployment succeeded."
+          title: "Blog App pipeline succeeded"
+          description: "Build and deployment checks completed successfully."
 
   tag_release:
     name: Tag release
