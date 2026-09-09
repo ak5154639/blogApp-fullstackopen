@@ -67,77 +67,50 @@ jobs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger deployment
+      - name: Trigger Render deployment
         env:
-          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        run: curl --fail --show-error --silent "$DEPLOY_HOOK"
+          deploy_url: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          test -n "$deploy_url" || {
+            echo "RENDER_DEPLOY_HOOK is not configured"
+            exit 1
+          }
+          curl --fail --show-error --silent --location "$deploy_url"
 
   notify_failure:
     name: Notify failure
     needs: [build_and_test, deploy]
     if: ${{ always() && (needs.build_and_test.result == 'failure' || needs.deploy.result == 'failure') }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
     steps:
-      - name: Add failure notification
-        uses: actions/github-script@v8
+      - name: Send failure notification
+        uses: sarisia/actions-status-discord@v1
         with:
-          script: |
-            const message = `The Blog App pipeline failed for ${context.sha}. Check the workflow logs for details.`
-            await core.summary
-              .addHeading('Pipeline failed')
-              .addRaw(message)
-              .write()
-
-            if (context.payload.pull_request) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: message
-              })
-            }
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: failure
+          title: Blog App pipeline failed
+          description: Build or deployment failed. Check the GitHub Actions logs.
+          content: Blog App deployment failed.
 
   notify_success:
     name: Notify success
     needs: [build_and_test, deploy]
     if: ${{ always() && needs.build_and_test.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
     steps:
-      - name: Add success notification
-        uses: actions/github-script@v8
+      - name: Send success notification
+        uses: sarisia/actions-status-discord@v1
         with:
-          script: |
-            const deployed = '${{ needs.deploy.result }}' === 'success'
-            const message = deployed
-              ? `The Blog App pipeline passed and deployment completed for ${context.sha}.`
-              : `The Blog App checks passed for ${context.sha}. Deployment is skipped for pull requests.`
-
-            await core.summary
-              .addHeading('Pipeline succeeded')
-              .addRaw(message)
-              .write()
-
-            if (context.payload.pull_request) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: message
-              })
-            }
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: success
+          title: Blog App pipeline succeeded
+          description: Build and deployment checks completed successfully.
+          content: Blog App deployment succeeded.
 
   tag_release:
     name: Tag release
     needs: [build_and_test, deploy, notify_success]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build_and_test.result == 'success' && needs.deploy.result == 'success' && needs.notify_success.result == 'success' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build_and_test.result == 'success' && needs.deploy.result == 'success' && needs.notify_success.result == 'success' && !contains(join(github.event.commits.*.message, ' '), '#skip') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -148,10 +121,8 @@ jobs:
           fetch-depth: 0
 
       - name: Create release tag
+        uses: anothrNick/github-tag-action@1.75.0
         env:
-          TAG_NAME: v0.0.${{ github.run_number }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG_NAME" -m "Release $TAG_NAME" "$GITHUB_SHA"
-          git push origin "$TAG_NAME"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
+          WITH_V: true
