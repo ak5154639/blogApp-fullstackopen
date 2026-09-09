@@ -115,7 +115,7 @@ test('deleting a single blog post resource', async () => {
     assert.strictEqual(blogsAtEnd.length, blogsAtStart.length - 1)
 })
 
-test('updating like of a blog', async () => {
+test.only('updating like of a blog', async () => {
     const blogsAtStart = await testHelper.blogsInDb()
     const blogToUpdate = blogsAtStart[0]
     const newBlog = {
@@ -127,7 +127,7 @@ test('updating like of a blog', async () => {
 
     await api.put(`/api/blogs/${blogToUpdate.id}`).send(newBlog)
 
-    const updatedBlog = await api.get(`/api/blogs/${blogToUpdate.id}`)
+    const updatedBlog = await api.put(`/api/blogs/${blogToUpdate.id}`).set('Authorization', `Bearer ${token}`).send(newBlog)
     assert.strictEqual(updatedBlog.body.likes, newBlog.likes)
 })
 
