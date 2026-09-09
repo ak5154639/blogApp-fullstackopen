@@ -69,7 +69,9 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: e2e-tests-playwright
-        run: npx playwright install --with-deps firefox
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          npx playwright install --with-deps firefox
 
       - name: Start backend with built frontend
         working-directory: backend
