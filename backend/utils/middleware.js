@@ -48,17 +48,19 @@ const userExtractor = async (request, response, next) => {
         return response.status(401).json({ error: 'token missing' })
     }
     
-    const decodedToken = jwt.verify(request.token, process.env.SECRET)
-
-    const user = await User.findById(decodedToken.id)
-    
-    if(!user) {
-        return response.status(400).json({error: 'userId missing or not valid'})
+    try {
+        const decodedToken = jwt.verify(request.token, process.env.SECRET)
+        const user = await User.findById(decodedToken.id)
+        
+        if(!user) {
+            return response.status(400).json({error: 'userId missing or not valid'})
+        }
+        
+        request.user = user
+        next()
+    } catch (error) {
+        next(error)
     }
-    
-    request.user = user
-
-    next()
 }
 
 module.exports = {
