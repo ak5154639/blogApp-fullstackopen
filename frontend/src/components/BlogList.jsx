@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 
 
-const BlogList = ({ blogs, handleLike, handleRemove, user }) => {
+const BlogList = ({ blogs }) => {
   return (
     <>
       <h2>blogs</h2>

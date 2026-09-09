@@ -108,11 +108,10 @@ const Blog = ({ blogs, handleLike, handleRemove, user }) => {
 
         {blog.user && user &&
           blog.user.username === user.username && (
-            <RemoveButton onClick={remove}>
+          <RemoveButton onClick={remove}>
               remove
-            </RemoveButton>
-          )
-        }
+          </RemoveButton>
+        )}
       </BlogLikes>
     </BlogCard>
   )

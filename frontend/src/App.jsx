@@ -173,7 +173,7 @@ const App = () => {
           <LinkSet>
             <NavigationLink to="/">blogs</NavigationLink>
             {user && <NavigationLink to="/create">new blog</NavigationLink>}
-            {user ? <LogoutButton handleLogout={handleLogout} /> : <NavigationLink to="/login">login</NavigationLink>}        
+            {user ? <LogoutButton handleLogout={handleLogout} /> : <NavigationLink to="/login">login</NavigationLink>}
           </LinkSet>
         </Navigation>
         <Notification notification={message} />
@@ -187,12 +187,12 @@ const App = () => {
               user
                 ? <Navigate to="/" replace />
                 : <LoginForm
-                    username={username}
-                    setUsername={setUsername}
-                    password={password}
-                    setPassword={setPassword}
-                    handleLogin={handleLogin}
-                  />
+                  username={username}
+                  setUsername={setUsername}
+                  password={password}
+                  setPassword={setPassword}
+                  handleLogin={handleLogin}
+                />
             }
           />
           <Route path='/' element={<BlogList blogs={blogs} handleLike={handleLike} handleRemove={handleRemove} user={user} />} />

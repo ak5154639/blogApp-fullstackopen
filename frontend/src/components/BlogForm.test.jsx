@@ -14,7 +14,7 @@ test('the form calls the event handler it received as props with the right detai
       />
     </MemoryRouter>
   )
-  
+
   const title = screen.getByRole('textbox', { name: /^title/i })
   const author = screen.getByRole('textbox', { name: /^author/i })
   const url = screen.getByRole('textbox', { name: /^url/i })
@@ -28,7 +28,7 @@ test('the form calls the event handler it received as props with the right detai
   await user.click(createButton)
 
   const formdata = createBlog.mock.calls[0][0]
-  
+
   expect(formdata.title).toBe('godan')
   expect(formdata.author).toBe('premchand')
   expect(formdata.url).toBe('google.com')
