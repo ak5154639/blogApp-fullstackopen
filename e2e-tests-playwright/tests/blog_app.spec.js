@@ -58,13 +58,11 @@ describe('When logged in', () => {
 
     await page.getByRole('link', { 'name': 'Karambhoomi by premchand' }).click()
     
-    await page.getByRole('button', { 'name': 'view' }).click()
-
     const likeText = await page.getByText('likes', { 'exact': false }).textContent()
     const prevLikes = Number(likeText.match(/\d+/)[0])
 
     await page.getByRole('button', { 'name': 'like' }).click()
-    await expect(page.getByText(`likes ${prevLikes + 1}`, { 'exact': false })).toBeVisible()
+    await expect(page.getByText(`${prevLikes + 1} likes`, { 'exact': false })).toBeVisible()
   })
   
   test('the user who added the blog can delete the blog', async ({ page }) => {
@@ -72,16 +70,14 @@ describe('When logged in', () => {
 
     await page.getByRole('link', { 'name': 'Karambhoomi by premchand' }).click()
     
-    await page.getByRole('button', { 'name': 'view' }).click()
-
     page.on('dialog', async dialog => {
       expect(dialog.type()).toBe('confirm')
       expect(dialog.message()).toBe('Remove blog Karambhoomi by premchand')
-
+      
       await dialog.accept()
     })
-
-    await page.getByRole('button', { 'name': 'delete' }).click()
+    
+    await page.getByRole('button', { 'name': 'remove' }).click()
 
     await expect(page.getByText('blog Karambhoomi by premchand deleted')).toBeVisible()
     await expect(page.getByText('Karambhoomi', { 'exact': true })).not.toBeAttached()
@@ -119,8 +115,6 @@ describe('When user is logged in with different users', () => {
   
   test('user who didn\'t created blog couldn\'t see delete button', async ({ page }) => {
     await page.getByRole('link', { 'name': 'Godan by premchand' }).click()
-    await page.getByRole('button', { 'name': 'view' }).click()
-  
     // Make sure delete button not visible for this user
     await expect(page.getByRole('button', { 'name': 'delete' })).not.toBeVisible()
   })
@@ -149,7 +143,6 @@ describe('when multiple blogs are there', () => {
     const likeBlog = async (blogName, amount) => {
       for (let index = 0; index < amount; index++) {
         await page.getByRole('link', { name: blogName }).click()
-        await page.getByRole('button', { name: 'view' }).click()
         await page.getByRole('button', { name: 'like' }).click()
         await page.getByRole('link', { name: 'blogs' }).click()
       }

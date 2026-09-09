@@ -1,0 +1,205 @@
+name: Blog App Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build_and_test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    env:
+      TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
+      PORT: 5173
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+            e2e-tests-playwright/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run frontend component tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Copy frontend build to backend
+        run: |
+          rm -rf backend/dist
+          cp -R frontend/dist backend/dist
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run backend API tests
+        working-directory: backend
+        env:
+          NODE_ENV: test
+        run: npm test
+
+      - name: Install E2E dependencies
+        working-directory: e2e-tests-playwright
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: e2e-tests-playwright
+        run: npx playwright install --with-deps firefox
+
+      - name: Start backend with built frontend
+        working-directory: backend
+        env:
+          NODE_ENV: test
+        run: |
+          npm run start:test > ../backend.log 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:5173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat ../backend.log
+          exit 1
+
+      - name: Run Playwright E2E tests
+        working-directory: e2e-tests-playwright
+        run: npm test
+
+      - name: Stop backend
+        if: ${{ always() }}
+        run: |
+          if [ -n "${SERVER_PID:-}" ]; then
+            kill "$SERVER_PID" || true
+          fi
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e-tests-playwright/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  deploy:
+    name: Deploy production
+    needs: build_and_test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deployment
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl --fail --show-error --silent "$DEPLOY_HOOK"
+
+  notify_failure:
+    name: Notify failure
+    needs: [build_and_test, deploy]
+    if: ${{ always() && (needs.build_and_test.result == 'failure' || needs.deploy.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Add failure notification
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const message = `The Blog App pipeline failed for ${context.sha}. Check the workflow logs for details.`
+            await core.summary
+              .addHeading('Pipeline failed')
+              .addRaw(message)
+              .write()
+
+            if (context.payload.pull_request) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              })
+            }
+
+  notify_success:
+    name: Notify success
+    needs: [build_and_test, deploy]
+    if: ${{ always() && needs.build_and_test.result == 'success' && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Add success notification
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const deployed = '${{ needs.deploy.result }}' === 'success'
+            const message = deployed
+              ? `The Blog App pipeline passed and deployment completed for ${context.sha}.`
+              : `The Blog App checks passed for ${context.sha}. Deployment is skipped for pull requests.`
+
+            await core.summary
+              .addHeading('Pipeline succeeded')
+              .addRaw(message)
+              .write()
+
+            if (context.payload.pull_request) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              })
+            }
+
+  tag_release:
+    name: Tag release
+    needs: [build_and_test, deploy, notify_success]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build_and_test.result == 'success' && needs.deploy.result == 'success' && needs.notify_success.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create release tag
+        env:
+          TAG_NAME: v0.0.${{ github.run_number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME" "$GITHUB_SHA"
+          git push origin "$TAG_NAME"
