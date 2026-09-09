@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TEST_MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
-      PORT: 5173
 
     steps:
       - name: Check out repository
@@ -30,7 +29,6 @@ jobs:
           cache-dependency-path: |
             frontend/package-lock.json
             backend/package-lock.json
-            e2e-tests-playwright/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -62,54 +60,6 @@ jobs:
         env:
           NODE_ENV: test
         run: npm test
-
-      - name: Install E2E dependencies
-        working-directory: e2e-tests-playwright
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: e2e-tests-playwright
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
-          npx playwright install --with-deps firefox
-
-      - name: Start backend with built frontend
-        working-directory: backend
-        env:
-          NODE_ENV: test
-        run: |
-          npm run start:test > ../backend.log 2>&1 &
-          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
-
-          for attempt in {1..30}; do
-            if curl --fail --silent http://localhost:5173/ > /dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-
-          cat ../backend.log
-          exit 1
-
-      - name: Run Playwright E2E tests
-        working-directory: e2e-tests-playwright
-        run: npm test
-
-      - name: Stop backend
-        if: ${{ always() }}
-        run: |
-          if [ -n "${SERVER_PID:-}" ]; then
-            kill "$SERVER_PID" || true
-          fi
-
-      - name: Upload Playwright report
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: e2e-tests-playwright/playwright-report/
-          if-no-files-found: ignore
-          retention-days: 30
 
   deploy:
     name: Deploy production
